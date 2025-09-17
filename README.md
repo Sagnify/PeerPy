@@ -9,6 +9,16 @@ This repository provides a set of modular libraries for building WebRTC DataChan
 -   **Client-Side WebRTC Wrapper:** A JavaScript class to simplify WebRTC setup and interaction in the browser.
 -   **Clear Separation of Concerns:** Backend and frontend logic are independently reusable.
 
+## Installation
+
+### Python
+```
+pip install peerpyrtc
+```
+### JavaScript
+```
+npm install peerpyrtc-client
+```
 ## Getting Started (for Developers)
 
 ### Prerequisites
@@ -17,20 +27,7 @@ This repository provides a set of modular libraries for building WebRTC DataChan
 -   **`aiortc`:** Python library for WebRTC implementation.
 -   **JavaScript Environment:** A modern web browser (for frontend library)
 
-### Installation / Integration
 
-#### Python Backend Libraries
-
-1.  **Install core Python dependency:**
-    ```bash
-    pip install aiortc
-    ```
-2.  **Copy the `PeerPy` directory** into your Python project.
-3.  **Integrate with your web framework:** The `SignalingManager` is designed to be framework-agnostic. You can integrate it with Flask, FastAPI, Django, or any other Python web framework by mapping your framework's routes to the `SignalingManager`'s methods.
-
-#### JavaScript Frontend Library
-
-1.  **Copy the `PeerPy_Client` directory** into your web project.
 
 ## Backend Libraries
 

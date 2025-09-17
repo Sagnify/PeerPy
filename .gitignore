@@ -43,3 +43,5 @@ Thumbs.db
 # aiortc might create some temporary files or directories,
 # though typically they are cleaned up.
 # If you notice any persistent aiortc-related temp files, add them here.
+
+lib/

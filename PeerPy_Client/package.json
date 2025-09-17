@@ -1,6 +1,9 @@
 {
-  "name": "peerpy-client",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "myrtclib.js"
+  "name": "peerpyrtc-client",          
+  "version": "0.1.0",                  
+  "description": "Python-backed WebRTC helper library for JS clients",
+  "main": "myrtclib.js",               
+  "keywords": ["webrtc", "datachannel", "rtc", "peer-to-peer"],
+  "author": "Sagnik",
+  "license": "MIT"
 }
