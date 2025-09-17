@@ -313,4 +313,4 @@ These are the API endpoints implemented by the example `app.py` using the `Signa
 
 ## License
 
-This project is open-sourced under the MIT License. See the [LICENSE](LICENSE) file for details. (Note: A `LICENSE` file is not included in this response but is good practice to add.)
+This project is open-sourced under the MIT License. See the [LICENSE](LICENSE) file for details.
