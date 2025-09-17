@@ -1,0 +1,6 @@
+{
+  "name": "peerpy-client",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "myrtclib.js"
+}

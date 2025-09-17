@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebRTC Shared Whiteboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    canvas { border: 1px solid #ccc; background-color: #f9f9f9; cursor: crosshair; }
+    input { padding: 5px; margin: 5px; }
+    button { padding: 5px 10px; margin: 5px; }
+    .status { color: #666; font-style: italic; }
+    .error { color: red; }
+    .success { color: green; }
+    #colorPicker { width: 50px; height: 25px; border: none; padding: 0; vertical-align: middle; }
+    #brushSize { width: 50px; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <h2>WebRTC Shared Whiteboard</h2>
+
+  <label>Room: <input type="text" id="room" value="whiteboard_room"></label><br><br>
+  <label>Peer ID: <input type="text" id="peerId" value="" placeholder="Enter unique peer ID"></label><br><br>
+  <button id="connectButton">Connect</button>
+  <button id="disconnectButton">Disconnect</button>
+  <button id="generateIdButton">Generate Random Peer ID</button>
+
+  <div id="status" class="status">Disconnected</div>
+
+  <div>
+    Brush Color: <input type="color" id="colorPicker" value="#000000">
+    Brush Size: <input type="range" id="brushSize" min="1" max="20" value="5">
+    <button id="clearButton">Clear Whiteboard</button>
+  </div>
+
+  <canvas id="whiteboardCanvas" width="800" height="600"></canvas>
+
+  <script type="module">
+    import { WebRTCConnection } from '/PeerPy_Client/myrtclib.js';
+
+    let rtcConnection;
+    const canvas = document.getElementById('whiteboardCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function log(message, type = "") {
+      console.log(`[LOG] ${type}: ${message}`);
+    }
+
+    function updateStatus(status) {
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = status;
+    }
+
+    function generatePeerID() {
+      const randomID = 'wb-peer-' + Math.random().toString(36).substr(2, 9);
+      document.getElementById("peerId").value = randomID;
+      log(`Generated peer ID: ${randomID}`, "status");
+    }
+
+    function drawLine(x1, y1, x2, y2, color, size) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.lineCap = 'round';
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Canvas drawing event handlers
+    canvas.addEventListener('mousedown', (e) => {
+      isDrawing = true;
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!isDrawing) return;
+      const color = document.getElementById('colorPicker').value;
+      const size = document.getElementById('brushSize').value;
+
+      // Draw locally
+      drawLine(lastX, lastY, e.offsetX, e.offsetY, color, size);
+
+      // Send drawing data over WebRTC
+      if (rtcConnection && rtcConnection.isConnected()) {
+        const drawData = {
+          type: 'draw',
+          x1: lastX,
+          y1: lastY,
+          x2: e.offsetX,
+          y2: e.offsetY,
+          color: color,
+          size: size
+        };
+        rtcConnection.sendMessage(JSON.stringify(drawData));
+      }
+
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mouseout', () => isDrawing = false);
+
+    document.getElementById('clearButton').addEventListener('click', () => {
+      clearCanvas();
+      if (rtcConnection && rtcConnection.isConnected()) {
+        rtcConnection.sendMessage(JSON.stringify({ type: 'clear' }));
+      }
+    });
+
+    async function connect() {
+      const roomName = document.getElementById("room").value;
+      const peerId = document.getElementById("peerId").value;
+      
+      if (!roomName || !peerId) {
+        log("Please enter both room name and peer ID", "error");
+        return;
+      }
+
+      log("Connecting...", "status");
+      updateStatus("Connecting...");
+
+      rtcConnection = new WebRTCConnection(roomName, peerId);
+
+      rtcConnection.onMessage = (message) => {
+        try {
+          const data = JSON.parse(message);
+          if (data.type === 'draw') {
+            drawLine(data.x1, data.y1, data.x2, data.y2, data.color, data.size);
+          } else if (data.type === 'clear') {
+            clearCanvas();
+          }
+        } catch (e) {
+          console.error("Failed to parse message:", e);
+        }
+      };
+
+      rtcConnection.onOpen = () => {
+        log("Connection established! You can now draw.", "success");
+        updateStatus("Connected");
+      };
+
+      rtcConnection.onClose = () => {
+        log("Connection closed.", "error");
+        updateStatus("Disconnected");
+      };
+
+      rtcConnection.onError = (error) => {
+        log(`WebRTC Error: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      };
+
+      rtcConnection.onStatusChange = (status) => {
+        updateStatus(status);
+      };
+
+      try {
+        await rtcConnection.connect();
+        log(`Joined room: ${roomName} as ${peerId}`, "success");
+      } catch (error) {
+        console.error("[ERROR] Failed to connect:", error);
+        log(`Failed to connect: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      }
+    }
+
+    async function disconnect() {
+      if (rtcConnection) {
+        await rtcConnection.closeConnection();
+        log("Disconnected.", "status");
+        updateStatus("Disconnected");
+      }
+    }
+
+    // Event Listeners
+    window.addEventListener('load', () => {
+      generatePeerID();
+      document.getElementById("connectButton").onclick = connect;
+      document.getElementById("disconnectButton").onclick = disconnect;
+      document.getElementById("generateIdButton").onclick = generatePeerID;
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (rtcConnection) {
+        rtcConnection.closeConnection();
+      }
+    });
+  </script>
+</body>
+</html>

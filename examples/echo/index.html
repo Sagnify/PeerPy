@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebRTC Echo Application</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #output { border: 1px solid #ccc; padding: 10px; width: 400px; height: 200px; overflow-y: auto; background: #f9f9f9; margin-top: 10px; }
+    input { padding: 5px; margin: 5px; }
+    button { padding: 5px 10px; margin: 5px; }
+    .status { color: #666; font-style: italic; }
+    .error { color: red; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <h2>WebRTC Echo Application</h2>
+
+  <label>Room: <input type="text" id="room" value="echo_room"></label><br><br>
+  <label>Peer ID: <input type="text" id="peerId" value="" placeholder="Enter unique peer ID"></label><br><br>
+  <button id="connectButton">Connect</button>
+  <button id="disconnectButton">Disconnect</button>
+  <button id="generateIdButton">Generate Random Peer ID</button>
+
+  <div id="status" class="status">Disconnected</div>
+
+  <h3>Send Data</h3>
+  <input type="text" id="dataInput" placeholder="Type data to echo...">
+  <button id="sendButton">Send</button>
+
+  <h3>Received Data</h3>
+  <div id="output"></div>
+
+  <script type="module">
+    import { WebRTCConnection } from '/PeerPy_Client/myrtclib.js';
+
+    let rtcConnection;
+
+    function log(message, type = "") {
+      const outputDiv = document.getElementById("output");
+      const className = type ? ` class="${type}"` : "";
+      const timestamp = new Date().toLocaleTimeString();
+      outputDiv.innerHTML += `<div${className}>[${timestamp}] ${message}</div>`;
+      outputDiv.scrollTop = outputDiv.scrollHeight;
+    }
+
+    function updateStatus(status) {
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = status;
+    }
+
+    function generatePeerID() {
+      const randomID = 'echo-peer-' + Math.random().toString(36).substr(2, 9);
+      document.getElementById("peerId").value = randomID;
+      log(`Generated peer ID: ${randomID}`, "status");
+    }
+
+    async function connect() {
+      const roomName = document.getElementById("room").value;
+      const peerId = document.getElementById("peerId").value;
+      
+      if (!roomName || !peerId) {
+        log("Please enter both room name and peer ID", "error");
+        return;
+      }
+
+      log("Connecting...", "status");
+      updateStatus("Connecting...");
+
+      rtcConnection = new WebRTCConnection(roomName, peerId);
+
+      rtcConnection.onMessage = (message) => {
+        log(`Received: ${message}`);
+      };
+
+      rtcConnection.onOpen = () => {
+        log("Connection established! You can now send data.", "success");
+        updateStatus("Connected");
+      };
+
+      rtcConnection.onClose = () => {
+        log("Connection closed.", "error");
+        updateStatus("Disconnected");
+      };
+
+      rtcConnection.onError = (error) => {
+        log(`WebRTC Error: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      };
+
+      rtcConnection.onStatusChange = (status) => {
+        updateStatus(status);
+      };
+
+      try {
+        await rtcConnection.connect();
+        log(`Joined room: ${roomName} as ${peerId}`, "success");
+      } catch (error) {
+        console.error("[ERROR] Failed to connect:", error);
+        log(`Failed to connect: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      }
+    }
+
+    function sendData() {
+      const dataInput = document.getElementById("dataInput");
+      const data = dataInput.value.trim();
+      
+      if (!data) return;
+
+      if (rtcConnection && rtcConnection.isConnected()) {
+        rtcConnection.sendMessage(data);
+        log(`Sent: ${data}`);
+        dataInput.value = "";
+      } else {
+        log("Not connected.", "error");
+      }
+    }
+
+    async function disconnect() {
+      if (rtcConnection) {
+        await rtcConnection.closeConnection();
+        log("Disconnected.", "status");
+        updateStatus("Disconnected");
+      }
+    }
+
+    // Event Listeners
+    window.addEventListener('load', () => {
+      generatePeerID();
+      document.getElementById("connectButton").onclick = connect;
+      document.getElementById("disconnectButton").onclick = disconnect;
+      document.getElementById("sendButton").onclick = sendData;
+      document.getElementById("generateIdButton").onclick = generatePeerID;
+      document.getElementById("dataInput").onkeypress = (event) => {
+        if (event.key === 'Enter') {
+          sendData();
+        }
+      };
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (rtcConnection) {
+        rtcConnection.closeConnection();
+      }
+    });
+  </script>
+</body>
+</html>

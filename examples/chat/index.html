@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebRTC DataChannel Chat</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; width: 400px; height: 300px; overflow-y: auto; background: #f9f9f9; }
+    #message { width: 300px; padding: 5px; }
+    button { padding: 5px 10px; margin: 5px; }
+    .status { color: #666; font-style: italic; }
+    .error { color: red; }
+    .success { color: green; }
+    input { padding: 5px; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h2>WebRTC DataChannel Chat</h2>
+
+  <label>Room: <input type="text" id="room" value="myroom"></label><br><br>
+  <label>Peer ID: <input type="text" id="peerId" value="" placeholder="Enter unique peer ID"></label><br><br>
+  <button id="joinButton">Join Room</button>
+  <button id="leaveButton">Leave Room</button>
+  <button id="generateIdButton">Generate Random Peer ID</button>
+
+  <div id="status" class="status">Not connected</div>
+
+  <h3>Chat</h3>
+  <div id="chat"></div>
+  <input type="text" id="message" placeholder="Type a message...">
+  <button id="sendButton">Send</button>
+
+  <script type="module">
+    import { WebRTCConnection } from '../../PeerPy_Client/myrtclib.js';
+
+    let rtcConnection; // Instance of our WebRTC library
+
+    function log(message, type = "") {
+      const chat = document.getElementById("chat");
+      const className = type ? ` class="${type}"` : "";
+      const timestamp = new Date().toLocaleTimeString();
+      chat.innerHTML += `<div${className}>[${timestamp}] ${message}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function updateStatus(status) {
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = status;
+    }
+
+    function generatePeerID() {
+      const randomID = 'peer-' + Math.random().toString(36).substr(2, 9);
+      document.getElementById("peerId").value = randomID;
+      log(`Generated peer ID: ${randomID}`, "status");
+    }
+
+    async function joinRoom() {
+      const roomName = document.getElementById("room").value;
+      const peerId = document.getElementById("peerId").value;
+      
+      if (!roomName || !peerId) {
+        log("Please enter both room name and peer ID", "error");
+        return;
+      }
+
+      log("Joining room...", "status");
+      updateStatus("Connecting...");
+
+      rtcConnection = new WebRTCConnection(roomName, peerId);
+
+      rtcConnection.onMessage = (message) => {
+        log(`Remote: ${message}`);
+      };
+
+      rtcConnection.onOpen = () => {
+        log("Chat ready! You can now send messages.", "success");
+        updateStatus("Connected - Ready to chat");
+      };
+
+      rtcConnection.onClose = () => {
+        log("Chat disconnected", "error");
+        updateStatus("Disconnected");
+      };
+
+      rtcConnection.onError = (error) => {
+        log(`WebRTC Error: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      };
+
+      rtcConnection.onStatusChange = (status) => {
+        updateStatus(status);
+      };
+
+      try {
+        await rtcConnection.connect();
+        log(`Joined room: ${roomName} as ${peerId}`, "success");
+      } catch (error) {
+        console.error("[ERROR] Failed to join room:", error);
+        log(`Failed to join room: ${error.message}`, "error");
+        updateStatus("Connection failed");
+      }
+    }
+
+    function sendMessage() {
+      const messageInput = document.getElementById("message");
+      const msg = messageInput.value.trim();
+      
+      if (!msg) return;
+
+      if (rtcConnection && rtcConnection.isConnected()) {
+        rtcConnection.sendMessage(msg);
+        log(`Me: ${msg}`);
+        messageInput.value = "";
+      } else {
+        log("Not connected to a room.", "error");
+      }
+    }
+
+    async function leaveRoom() {
+      if (rtcConnection) {
+        await rtcConnection.closeConnection();
+        log("Left room.", "status");
+        updateStatus("Not connected");
+      }
+    }
+
+    function handleEnter(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    // Event Listeners
+    window.addEventListener('load', () => {
+      generatePeerID();
+      document.getElementById("joinButton").onclick = joinRoom;
+      document.getElementById("leaveButton").onclick = leaveRoom;
+      document.getElementById("sendButton").onclick = sendMessage;
+      document.getElementById("generateIdButton").onclick = generatePeerID;
+      document.getElementById("message").onkeypress = handleEnter;
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (rtcConnection) {
+        rtcConnection.closeConnection();
+      }
+    });
+  </script>
+</body>
+</html>
