@@ -92,61 +92,76 @@ if __name__ == "__main__":
 
 ### Backend Access to DataChannel Messages (for Persistence and Processing)
 
-Imagine your users are sending little paper airplanes (messages) to each other. Before, these airplanes flew directly between them, and your backend (the grown-up) never saw what was written on them. So, if a user left and came back, or if you wanted to remember what was said, you couldn't!
+WebRTC DataChannels are fantastic for direct, real-time communication between clients. However, by default, your backend server is completely unaware of the messages exchanged over these channels. This means:
 
-Now, we've added a special helper: every time a paper airplane flies between users, a *copy* of it also flies to your backend. This means your backend can now "read" every message!
+*   **No Message History:** If a user leaves and rejoins, their past messages are gone.
+*   **No Backend Processing:** You can't store messages, analyze them, or integrate with other backend services.
 
-You can use this copy for many cool things, like:
+To solve this, `PeerPy` provides a mechanism for your backend to receive a *copy* of every message sent over any DataChannel it manages. Think of it as a "message tap" – messages still flow directly between clients, but your server also gets a notification with the message content.
 
-*   **Storing in a Database:** Write down what was on the paper airplane in a special notebook (your database) so you always remember the chat history.
-*   **Processing:** Check if someone said something important, or trigger other actions based on the message.
+This enables powerful features for your application:
 
-#### How to "Catch" the Messages in Your Backend
+*   **Persistence:** Store messages in a database for chat history, offline messaging, or auditing.
+*   **Analytics:** Analyze message patterns, user engagement, or content.
+*   **Moderation:** Implement content filtering or user moderation.
+*   **Integration:** Forward messages to other services (e.g., AI chatbots, notification systems).
 
-The `SignalingManager` now has a special way for you to tell it what to do with these message copies.
+#### How to Implement Backend Message Handling
+
+The `SignalingManager` offers a straightforward way to register a function that will be called every time a DataChannel message is received by the backend.
 
 **1. Default Behavior (Automatic Logging):**
 
-If you don't do anything special, the `SignalingManager` will automatically write down (log) every message it receives to your server's console. This is like the grown-up just saying "Aha, I saw that!" out loud.
+If you don't explicitly register a handler, the `SignalingManager` will automatically log all incoming DataChannel messages to your server's console. This provides immediate visibility into the message flow without any extra code.
 
-**2. Customizing What Your Backend Does (e.g., Save to Database):**
+**2. Customizing with a Decorator (e.g., Saving to a Database):**
 
-If you want your backend to do something more specific, like saving messages to a database, you can easily tell the `SignalingManager` to use your own special function.
+For custom logic, like saving messages to a database, you can use the `@signaling_manager.message_handler` decorator. This is a Pythonic way to register your asynchronous function directly.
 
-Here's how you'd do it in your Flask `app.py` (or similar backend file):
+Here's how you'd typically set this up in your Flask `app.py` (or similar backend file):
 
 ```python
 # ... (your existing imports and Flask app setup) ...
 
 from PeerPy import SignalingManager
-import asyncio # Needed for async database operations
+import asyncio # Needed for async operations, especially for database calls
 
 app = Flask(__name__)
 signaling_manager = SignalingManager()
 
-# Imagine you have a way to talk to your database, like this simple example:
-class MyDatabaseSaver:
-    async def save_chat_message(self, room_name, sender_id, message):
-        print(f"DATABASE: Saving message from {sender_id} in room {room_name}: {message}")
-        await asyncio.sleep(0.1) # Pretend to save to a real database
-        # In a real app, you'd use your actual database client here (e.g., SQLAlchemy, asyncpg)
-        # Example: await my_db_client.messages.insert_one({"room": room_name, "sender": sender_id, "text": message})
+# --- Example Database Integration (Replace with your actual DB setup) ---
+# In a real application, you would initialize your database client here.
+# For demonstration, we'll use a simple mock database saver.
+class MockDatabaseSaver:
+    async def save_chat_message(self, room_name: str, sender_id: str, message: str):
+        """Simulates saving a chat message to a database."""
+        print(f"--- DB SAVE (MOCK) --- Room: '{room_name}', Sender: '{sender_id}', Message: '{message}'")
+        await asyncio.sleep(0.1) # Simulate an asynchronous database write operation
+        print("--- DB SAVE COMPLETE (MOCK) ---")
 
-my_db_saver = MyDatabaseSaver() # This would be your actual database connection
+# Initialize your database saver (replace MockDatabaseSaver with your actual DB client)
+my_db_saver = MockDatabaseSaver()
 
-# Now, tell the SignalingManager to use YOUR function whenever a message arrives!
+# --- Register Your Custom Message Handler ---
 @signaling_manager.message_handler
-async def handle_incoming_message(room_name: str, sender_id: str, message: str):
-    # This function gets called for EVERY message sent between users in any room!
-    print(f"Backend received message from {sender_id} in room {room_name}: {message}")
+async def handle_incoming_datachannel_message(room_name: str, sender_id: str, message: str):
+    """
+    This asynchronous function will be called by the SignalingManager
+    for EVERY message sent over any DataChannel it manages.
+    """
+    logger.info(f"[BACKEND_MESSAGE_RECEIVED] Room: {room_name}, Sender: {sender_id}, Message: {message}")
     
-    # Here's where you tell your database to save it!
+    # This is where you implement your custom logic:
     await my_db_saver.save_chat_message(room_name, sender_id, message)
+    # You could also:
+    # - Perform sentiment analysis on 'message'
+    # - Trigger a notification for 'sender_id'
+    # - Update a real-time dashboard
 
 # ... (your existing Flask routes and app.run) ...
 ```
 
-With this simple setup, your backend becomes a smart observer, able to keep track of all the paper airplanes flying around, making your application much more powerful!
+By using the `@signaling_manager.message_handler` decorator, your backend function `handle_incoming_datachannel_message` will automatically receive `room_name`, `sender_id`, and the `message` content, allowing you to integrate powerful backend processing with your WebRTC DataChannels.
 
 ## Frontend Library
 
