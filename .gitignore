@@ -45,3 +45,5 @@ Thumbs.db
 # If you notice any persistent aiortc-related temp files, add them here.
 
 lib/
+dist/
+.peerpyrtc-client/dist/

@@ -25,6 +25,32 @@ pip install peerpyrtc
 npm install peerpyrtc-client
 ```
 
+## Direct Browser Usage (CDN)
+
+For quick prototyping or projects without a build step, you can use the UMD build directly in your browser via a CDN.
+
+```html
+<!-- unpkg -->
+<script src="https://unpkg.com/peerpyrtc-client@0.1.0/dist/peerpyrtc.umd.js"></script>
+
+<!-- jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/peerpyrtc-client@0.1.0/dist/peerpyrtc.umd.js"></script>
+
+<script>
+  // The library will be available on the window object, e.g., window.PeerPyRTC
+  const { WebRTCConnection } = window.PeerPyRTC;
+
+  const rtc = new WebRTCConnection("my-cdn-room");
+
+  rtc.onOpen = () => {
+    console.log("Connection open!");
+    rtc.sendMessage("Hello from the CDN!");
+  };
+
+  rtc.connect();
+</script>
+```
+
 ## Quick Start
 
 This example demonstrates how to set up a minimal signaling server with Flask.

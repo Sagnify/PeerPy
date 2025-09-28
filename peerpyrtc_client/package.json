@@ -1,9 +1,24 @@
 {
-  "name": "peerpyrtc-client",          
-  "version": "0.1.0",                  
+  "name": "peerpyrtc-client",
+  "version": "0.2.3",
   "description": "Python-backed WebRTC helper library for JS clients",
-  "main": "myrtclib.js",               
-  "keywords": ["webrtc", "datachannel", "rtc", "peer-to-peer"],
+  "main": "dist/peerpyrtc.umd.js",
+  "module": "dist/peerpyrtc.esm.js",
+  "keywords": [
+    "webrtc",
+    "datachannel",
+    "rtc",
+    "peer-to-peer"
+  ],
   "author": "Sagnik",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "rollup": "^4.52.3"
+  },
+  "scripts": {
+  "build": "rollup -c"
+}
+
 }
