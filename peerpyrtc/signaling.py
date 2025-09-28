@@ -2,12 +2,32 @@ import asyncio
 import logging
 import threading
 import time
-from .myrtclib import Room
+from .peerpyrtc import Room
 
-logger = logging.getLogger("signaling-manager")
+# Get the loggers for the library
+myrtc_logger = logging.getLogger("myrtc")
+signaling_logger = logging.getLogger("signaling-manager")
 
 class SignalingManager:
-    def __init__(self):
+    def __init__(self, debug=False):
+        # Configure logging based on the debug flag
+        if debug:
+            log_level = logging.INFO
+        else:
+            log_level = logging.WARNING
+
+        myrtc_logger.setLevel(log_level)
+        signaling_logger.setLevel(log_level)
+
+        # Add a handler for the root logger if none is configured
+        # This ensures that logs are displayed by default
+        if not logging.getLogger().hasHandlers():
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            logging.getLogger().addHandler(handler)
+            logging.getLogger().setLevel(log_level)
+
         self.rooms = {}
         self._async_loop = None
         self._loop_thread = None
@@ -40,7 +60,7 @@ class SignalingManager:
 
         self._loop_thread = threading.Thread(target=run_loop, daemon=True)
         self._loop_thread.start()
-        logger.info("Asyncio event loop started in a separate thread.")
+        signaling_logger.info("Asyncio event loop started in a separate thread.")
 
     def get_event_loop(self):
         """Get the asyncio loop running in the background thread"""
@@ -50,12 +70,12 @@ class SignalingManager:
 
     async def _default_message_logger(self, room_name: str, sender_id: str, message: str):
         """Default message handler that logs messages."""
-        logger.info(f"[DEFAULT_BACKEND_MESSAGE] Room: {room_name}, Sender: {sender_id}, Message: {message}")
+        signaling_logger.info(f"[DEFAULT_BACKEND_MESSAGE] Room: {room_name}, Sender: {sender_id}, Message: {message}")
 
     def set_message_handler(self, handler):
         """Set a handler function to be called when a message is received by any peer."""
         if not asyncio.iscoroutinefunction(handler):
-            logger.warning("Provided message handler is not an async function. It might block the event loop.")
+            signaling_logger.warning("Provided message handler is not an async function. It might block the event loop.")
         self._message_handler = handler
 
     def message_handler(self, func):
@@ -74,9 +94,9 @@ class SignalingManager:
             try:
                 await self._message_handler(room_name, sender_id, message)
             except Exception as e:
-                logger.error(f"Error in user-defined message handler: {e}")
+                signaling_logger.error(f"Error in user-defined message handler: {e}")
         else:
-            logger.debug(f"No message handler set in SignalingManager for room {room_name}, peer {sender_id}: {message}")
+            signaling_logger.debug(f"No message handler set in SignalingManager for room {room_name}, peer {sender_id}: {message}")
 
     def get_room(self, room_name: str) -> Room:
         """Get or create a room"""
@@ -87,7 +107,7 @@ class SignalingManager:
                 turn_servers=self.default_turn_servers,
                 on_message_callback=self._handle_room_message
             )
-            logger.info(f"Created new room: {room_name}")
+            signaling_logger.info(f"Created new room: {room_name}")
         return self.rooms[room_name]
 
     def run_async(self, coro):
@@ -116,9 +136,17 @@ class SignalingManager:
             self.run_async(_process())
             if room.get_peer_count() == 0:
                 del self.rooms[room_name]
-                logger.info(f"[CLEANUP] Removed empty room: {room_name}")
+                signaling_logger.info(f"[CLEANUP] Removed empty room: {room_name}")
 
     def rooms_info(self) -> dict:
+        room_info = {}
+        for name, room in self.rooms.items():
+            room_info[name] = {
+                "peer_count": room.get_peer_count(),
+                "peers": list(room.peers.keys())
+            }
+        return room_info
+def rooms_info(self) -> dict:
         room_info = {}
         for name, room in self.rooms.items():
             room_info[name] = {

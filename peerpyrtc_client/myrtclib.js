@@ -1,7 +1,10 @@
 export class WebRTCConnection {
-  constructor(roomName, peerId) {
+  constructor(roomName, options = {}) {
+    const { peerId, debug } = options;
+
     this.roomName = roomName;
-    this.peerId = peerId;
+    this.peerId = peerId || 'peer-' + Math.random().toString(36).substr(2, 9);
+    this.debug = debug || false;
     this.pc = null;
     this.dataChannel = null;
     this.remoteDescriptionSet = false;
@@ -33,6 +36,12 @@ export class WebRTCConnection {
     ];
   }
 
+  _log(...args) {
+    if (this.debug) {
+      console.log(...args);
+    }
+  }
+
   async connect() {
     this.pc = new RTCPeerConnection({
       iceServers: [
@@ -43,7 +52,7 @@ export class WebRTCConnection {
 
     this.pc.onicecandidate = async (event) => {
       if (event.candidate) {
-        console.log("[ICE] New ICE candidate:", event.candidate.candidate);
+        this._log("[ICE] New ICE candidate:", event.candidate.candidate);
         try {
           const response = await fetch("/candidate", {
             method: "POST",
@@ -74,12 +83,12 @@ export class WebRTCConnection {
           console.error("[ICE] Error sending candidate:", error);
         }
       } else {
-        console.log("[ICE] ICE gathering complete");
+        this._log("[ICE] ICE gathering complete");
       }
     };
 
     this.pc.oniceconnectionstatechange = () => {
-      console.log("[ICE] Connection state:", this.pc.iceConnectionState);
+      this._log("[ICE] Connection state:", this.pc.iceConnectionState);
       this.onStatusChange(`ICE: ${this.pc.iceConnectionState}`);
       if (this.pc.iceConnectionState === 'failed') {
         if (this.pc.restartIce) {
@@ -89,7 +98,7 @@ export class WebRTCConnection {
     };
 
     this.pc.onconnectionstatechange = () => {
-      console.log("[CONNECTION] State:", this.pc.connectionState);
+      this._log("[CONNECTION] State:", this.pc.connectionState);
       this.onStatusChange(`Connection: ${this.pc.connectionState}`);
       if (this.pc.connectionState === 'connected') {
         this.onOpen();
@@ -99,7 +108,7 @@ export class WebRTCConnection {
     };
 
     this.pc.onsignalingstatechange = () => {
-      console.log("[SDP] Signaling state:", this.pc.signalingState);
+      this._log("[SDP] Signaling state:", this.pc.signalingState);
     };
 
     this.dataChannel = this.pc.createDataChannel("chat", {
@@ -108,18 +117,19 @@ export class WebRTCConnection {
     });
 
     this.dataChannel.onopen = () => {
-      console.log("[CHANNEL] Data channel opened");
+      this._log("[CHANNEL] Data channel opened");
       this.onOpen();
     };
 
     this.dataChannel.onclose = () => {
-      console.log("[CHANNEL] Data channel closed");
+      this._log("[CHANNEL] Data channel closed");
       this.onClose();
     };
 
     this.dataChannel.onmessage = (event) => {
-      console.log(`[CHANNEL] Received: ${event.data}`);
-      this.onMessage(event.data);
+      this._log(`[CHANNEL] Received: ${event.data}`);
+      const data = JSON.parse(event.data);
+      this.onMessage(data.peer_id, data.message);
     };
 
     this.dataChannel.onerror = (error) => {
@@ -128,14 +138,15 @@ export class WebRTCConnection {
     };
 
     this.pc.ondatachannel = (event) => {
-      console.log("[CHANNEL] Received remote data channel");
+      this._log("[CHANNEL] Received remote data channel");
       const remoteChannel = event.channel;
       remoteChannel.onmessage = (event) => {
-        console.log(`[CHANNEL] Remote message: ${event.data}`);
-        this.onMessage(event.data);
+        this._log(`[CHANNEL] Remote message: ${event.data}`);
+        const data = JSON.parse(event.data);
+        this.onMessage(data.peer_id, data.message);
       };
       remoteChannel.onopen = () => {
-        console.log("[CHANNEL] Remote data channel opened");
+        this._log("[CHANNEL] Remote data channel opened");
         this.onOpen();
       };
     };
@@ -175,7 +186,11 @@ export class WebRTCConnection {
 
   sendMessage(message) {
     if (this.dataChannel && this.dataChannel.readyState === "open") {
-      this.dataChannel.send(message);
+      const payload = JSON.stringify({
+        peer_id: this.peerId,
+        message: message
+      });
+      this.dataChannel.send(payload);
     } else {
       console.warn("[SEND] Data channel not open.");
     }

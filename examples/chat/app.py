@@ -6,18 +6,15 @@ import os
 import asyncio
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from PeerPy import SignalingManager # Changed import
+from peerpyrtc import SignalingManager
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Get the logger for this application
 logger = logging.getLogger("flask-signaling")
 
-app = Flask(__name__) # Reverted to original Flask constructor
+app = Flask(__name__)
 
-signaling_manager = SignalingManager()
+# Instantiate the SignalingManager with debug logging enabled
+signaling_manager = SignalingManager(debug=True)
 
 # Assume 'db' is an initialized database client/session
 # For demonstration, let's just simulate a database operation
@@ -52,15 +49,11 @@ def handle_offer():
         if not all([room_name, peer_id, offer]):
             return jsonify({"error": "Missing required fields: room, peer_id, offer"}), 400
 
-        logger.info(f"[OFFER] Received from peer={peer_id}, room={room_name}")
-        logger.debug(f"[OFFER] SDP type: {offer.get('type')}, SDP length: {len(offer.get('sdp', ''))}")
-
         answer = signaling_manager.offer(room_name, peer_id, offer)
         
         if not answer:
             return jsonify({"error": "Failed to create answer"}), 500
 
-        logger.info(f"[OFFER] Answer created for peer={peer_id}")
         return jsonify({"answer": answer})
 
     except Exception as e:
@@ -82,9 +75,6 @@ def handle_candidate():
 
         if not all([room_name, peer_id, candidate]):
             return jsonify({"error": "Missing required fields"}), 400
-
-        logger.info(f"[CANDIDATE] Received for peer={peer_id}, room={room_name}")
-        logger.debug(f"[CANDIDATE] Data: {candidate}")
 
         signaling_manager.candidate(room_name, peer_id, candidate)
         
@@ -109,8 +99,6 @@ def handle_leave():
         if not all([room_name, peer_id]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        logger.info(f"[LEAVE] Peer={peer_id} leaving room={room_name}")
-
         signaling_manager.leave(room_name, peer_id)
 
         return jsonify({"status": "ok"}), 200
@@ -131,11 +119,11 @@ def index():
     # Serve index.html from the examples/chat directory
     return send_from_directory(os.path.join(os.path.dirname(__file__)), 'index.html')
 
-@app.route("/PeerPy_Client/<path:path>")
+@app.route("/peerpyrtc_client/<path:path>")
 def serve_frontend_lib(path):
-    """Serve the PeerPy_Client library files"""
-    # Serve files from the PeerPy_Client directory
-    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "PeerPy_Client")), path)
+    """Serve the peerpyrtc_client library files"""
+    # Serve files from the peerpyrtc_client directory
+    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "peerpyrtc_client")), path)
 
 @app.errorhandler(404)
 def not_found(error):
@@ -147,6 +135,7 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == "__main__":
+    # The library now handles its own logging setup when debug=True
     logger.info("🚀 Starting Flask WebRTC DataChannel signaling server...")
     logger.info("📡 WebRTC signaling endpoints available:")
     logger.info("   POST /offer - Handle WebRTC offers")
@@ -155,4 +144,5 @@ if __name__ == "__main__":
     logger.info("   GET /rooms - List active rooms")
     logger.info("   GET / - Serve chat interface")
     
+    # Set debug=True for Flask's reloader and debugger
     app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)

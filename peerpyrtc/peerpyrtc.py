@@ -18,18 +18,23 @@ class Peer:
         @channel.on("message")
         def on_message(message):
             logger.info(f"Data received from peer {self.peer_id}: {message}")
-            # Call the room's message callback if available
+
+            try:
+                data = json.loads(message)
+                actual_message = data.get('message', message)
+            except json.JSONDecodeError:
+                actual_message = message
+
+            # Call the room's message callback with the clean message
             if self.room and self.room.on_message_callback:
-                # Use asyncio.create_task to avoid blocking
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(self.room.on_message_callback(self.room.name, self.peer_id, message))
+                    loop.create_task(self.room.on_message_callback(self.room.name, self.peer_id, actual_message))
                 except RuntimeError:
                     logger.error("No running event loop for room message callback")
 
-            # Broadcast to other peers in the room (existing logic)
+            # Broadcast to other peers in the room
             if self.room:
-                # Use asyncio.create_task to avoid blocking
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(self.room.broadcast(self.peer_id, message))

@@ -19,7 +19,8 @@
   <h2>WebRTC Shared Whiteboard</h2>
 
   <label>Room: <input type="text" id="room" value="whiteboard_room"></label><br><br>
-  <label>Peer ID: <input type="text" id="peerId" value="" placeholder="Enter unique peer ID"></label><br><br>
+  <label>Peer ID: <input type="text" id="peerId" value="" placeholder="Enter unique peer ID"></label><br>
+  <label><input type="checkbox" id="debugMode"> Enable Debug Logging</label><br><br>
   <button id="connectButton">Connect</button>
   <button id="disconnectButton">Disconnect</button>
   <button id="generateIdButton">Generate Random Peer ID</button>
@@ -35,7 +36,7 @@
   <canvas id="whiteboardCanvas" width="800" height="600"></canvas>
 
   <script type="module">
-    import { WebRTCConnection } from '/PeerPy_Client/myrtclib.js';
+    import { WebRTCConnection } from '/peerpyrtc_client/myrtclib.js';
 
     let rtcConnection;
     const canvas = document.getElementById('whiteboardCanvas');
@@ -118,6 +119,7 @@
     async function connect() {
       const roomName = document.getElementById("room").value;
       const peerId = document.getElementById("peerId").value;
+      const debugMode = document.getElementById("debugMode").checked;
       
       if (!roomName || !peerId) {
         log("Please enter both room name and peer ID", "error");
@@ -127,7 +129,7 @@
       log("Connecting...", "status");
       updateStatus("Connecting...");
 
-      rtcConnection = new WebRTCConnection(roomName, peerId);
+      rtcConnection = new WebRTCConnection(roomName, { peerId: peerId, debug: debugMode });
 
       rtcConnection.onMessage = (message) => {
         try {

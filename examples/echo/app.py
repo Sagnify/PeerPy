@@ -5,7 +5,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from PeerPy import SignalingManager
+from peerpyrtc import SignalingManager
 
 # Set up logging
 logging.basicConfig(
@@ -105,9 +105,9 @@ def handle_echo():
 def index():
     return send_from_directory(os.path.join(os.path.dirname(__file__)), 'index.html')
 
-@app.route("/PeerPy_Client/<path:path>")
+@app.route("/peerpyrtc_client/<path:path>")
 def serve_frontend_lib(path):
-    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "PeerPy_Client")), path)
+    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "peerpyrtc_client")), path)
 
 @app.errorhandler(404)
 def not_found(error):

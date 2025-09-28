@@ -5,18 +5,15 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from PeerPy import SignalingManager
+from peerpyrtc import SignalingManager
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Get the logger for this application
 logger = logging.getLogger("flask-whiteboard-signaling")
 
 app = Flask(__name__)
 
-signaling_manager = SignalingManager()
+# Instantiate the SignalingManager with debug logging enabled
+signaling_manager = SignalingManager(debug=True)
 
 @app.route("/offer", methods=["POST"])
 def handle_offer():
@@ -29,13 +26,11 @@ def handle_offer():
         if not all([room_name, peer_id, offer]):
             return jsonify({"error": "Missing required fields: room, peer_id, offer"}), 400
 
-        logger.info(f"[OFFER] Received from peer={peer_id}, room={room_name}")
         answer = signaling_manager.offer(room_name, peer_id, offer)
         
         if not answer:
             return jsonify({"error": "Failed to create answer"}), 500
 
-        logger.info(f"[OFFER] Answer created for peer={peer_id}")
         return jsonify({"answer": answer})
 
     except Exception as e:
@@ -53,7 +48,6 @@ def handle_candidate():
         if not all([room_name, peer_id, candidate]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        logger.info(f"[CANDIDATE] Received for peer={peer_id}, room={room_name}")
         signaling_manager.candidate(room_name, peer_id, candidate)
         
         return jsonify({"status": "ok"}), 200
@@ -72,7 +66,6 @@ def handle_leave():
         if not all([room_name, peer_id]):
             return jsonify({"error": "Missing required fields"}), 400
 
-        logger.info(f"[LEAVE] Peer={peer_id} leaving room={room_name}")
         signaling_manager.leave(room_name, peer_id)
         return jsonify({"status": "ok"})
 
@@ -84,9 +77,9 @@ def handle_leave():
 def index():
     return send_from_directory(os.path.join(os.path.dirname(__file__)), 'index.html')
 
-@app.route("/PeerPy_Client/<path:path>")
+@app.route("/peerpyrtc_client/<path:path>")
 def serve_frontend_lib(path):
-    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "PeerPy_Client")), path)
+    return send_from_directory(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "peerpyrtc_client")), path)
 
 @app.errorhandler(404)
 def not_found(error):

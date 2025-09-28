@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>WebRTC Terminal Chat</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #1e1e1e; color: #d4d4d4; }
+    h2 { color: #569cd6; }
+    #chat { border: 1px solid #333; padding: 10px; width: 600px; height: 400px; overflow-y: auto; background: #252526; font-family: monospace; }
+    #message, #roomName { width: 500px; padding: 8px; background-color: #3c3c3c; border: 1px solid #333; color: #d4d4d4; }
+    button { padding: 8px 15px; margin-left: 5px; background-color: #0e639c; border: none; color: white; cursor: pointer; }
+    button:hover { background-color: #1177bb; }
+    button:disabled { background-color: #555; cursor: not-allowed; }
+    .status { color: #888; font-style: italic; }
+    .error { color: #f44747; }
+    .success { color: #4ec9b0; }
+    .server-msg { color: #c586c0; }
+    .client-msg { color: #9cdcfe; }
+  </style>
+</head>
+<body>
+  <h2>WebRTC Terminal Chat</h2>
+  <p>Chat directly with the Python backend terminal.</p>
+
+  <div>
+    <input type="text" id="roomName" placeholder="Enter a room name...">
+    <button id="joinButton">Join Room</button>
+  </div>
+
+  <div id="status" class="status">Not connected</div>
+
+  <div id="chat"></div>
+  <br>
+  <input type="text" id="message" placeholder="Type a message to send to the backend..." disabled>
+  <button id="sendButton" disabled>Send</button>
+
+  <script type="module">
+    import { WebRTCConnection } from '../../peerpyrtc_client/myrtclib.js';
+
+    let rtcConnection; // Instance of our WebRTC library
+
+    const chat = document.getElementById("chat");
+    const statusEl = document.getElementById("status");
+    const messageInput = document.getElementById("message");
+    const sendButton = document.getElementById("sendButton");
+    const roomNameInput = document.getElementById("roomName");
+    const joinButton = document.getElementById("joinButton");
+
+    function log(message, className = "") {
+      const timestamp = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = className;
+      div.innerHTML = `[${timestamp}] ${message}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function updateStatus(status, type = "status") {
+      statusEl.textContent = status;
+      statusEl.className = type;
+    }
+
+    async function connect() {
+      if (rtcConnection) {
+        rtcConnection.closeConnection();
+        rtcConnection = null;
+      }
+
+      const roomName = roomNameInput.value.trim();
+      if (!roomName) {
+        log("Please enter a room name.", "error");
+        return;
+      }
+
+      log(`Connecting to room '${roomName}'...`, "status");
+      updateStatus("Connecting...");
+      joinButton.disabled = true;
+
+      // Use debug=true to see the library logs in the console
+      rtcConnection = new WebRTCConnection(roomName, { debug: true });
+
+      log(`Your Peer ID is: ${rtcConnection.peerId}`, "status");
+
+      // Handle messages from the backend terminal
+      rtcConnection.onMessage = (sender_id, message) => {
+        log(`Backend > ${message}`, "server-msg");
+      };
+
+      rtcConnection.onOpen = () => {
+        log("Connection established. You can now chat with the backend.", "success");
+        updateStatus(`Connected to room '${roomName}'`, "success");
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        joinButton.disabled = false;
+        joinButton.textContent = "Leave Room";
+      };
+
+      rtcConnection.onClose = () => {
+        log("Chat disconnected.", "error");
+        updateStatus("Disconnected", "error");
+        messageInput.disabled = true;
+        sendButton.disabled = true;
+        joinButton.disabled = false;
+        joinButton.textContent = "Join Room";
+        rtcConnection = null;
+      };
+
+      rtcConnection.onError = (error) => {
+        log(`WebRTC Error: ${error.message}`, "error");
+        updateStatus("Connection failed", "error");
+        joinButton.disabled = false;
+      };
+
+      try {
+        await rtcConnection.connect();
+      } catch (error) {
+        console.error("[ERROR] Failed to connect:", error);
+      }
+    }
+
+    function sendMessage() {
+      const msg = messageInput.value.trim();
+      if (!msg) return;
+
+      if (rtcConnection && rtcConnection.isConnected()) {
+        rtcConnection.sendMessage(msg);
+        log(`You > ${msg}`, "client-msg");
+        messageInput.value = "";
+      } else {
+        log("Not connected to the backend.", "error");
+      }
+    }
+
+    function handleJoinClick() {
+        if (rtcConnection && rtcConnection.isConnected()) {
+            rtcConnection.closeConnection();
+        } else {
+            connect();
+        }
+    }
+
+    // --- Event Listeners ---
+
+    joinButton.onclick = handleJoinClick;
+
+    sendButton.onclick = sendMessage;
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (rtcConnection) {
+        rtcConnection.closeConnection();
+      }
+    });
+  </script>
+</body>
+</html>
