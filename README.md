@@ -66,16 +66,20 @@ async def on_peer_left(room: str, peer_id: str, peer_info: dict):
 # Standard WebRTC signaling endpoints
 @app.route("/offer", methods=["POST"])
 def offer():
-    return jsonify(signaling_manager.offer(**request.json))
+    data = request.json
+    result = signaling_manager.offer(data['room'], data['peer_id'], data['offer'])
+    return jsonify({"answer": result})
 
 @app.route("/candidate", methods=["POST"])
 def candidate():
-    signaling_manager.candidate(**request.json)
+    data = request.json
+    signaling_manager.candidate(data['room'], data['peer_id'], data['candidate'])
     return jsonify({"status": "ok"})
 
 @app.route("/leave", methods=["POST"])
 def leave():
-    signaling_manager.leave(**request.json)
+    data = request.json
+    signaling_manager.leave(data['room'], data['peer_id'])
     return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
@@ -172,6 +176,24 @@ rtc.onRoomUpdate = (peers) => {}       // Room state changes
 rtc.onStatusChange = (status) => {}    // Connection status updates
 ```
 
+#### Peer Object Properties
+
+When a peer joins or leaves, the peer object contains:
+
+```javascript
+{
+  id: "peer-abc123",           // Unique peer identifier
+  isHost: true,                // Whether THIS peer is the room host
+  // ... other properties
+}
+```
+
+**Host Management:**
+- First peer to join becomes the host (`isHost: true`)
+- If host leaves, another peer is automatically elected
+- Use `rtc.isRoomHost()` to check if YOU are the host
+- Use `peer.isHost` to check if a specific peer is the host
+
 ### Backend API (`peerpyrtc`)
 
 #### SignalingManager
@@ -182,15 +204,21 @@ from peerpyrtc import SignalingManager
 # Initialize
 signaling_manager = SignalingManager(debug=True)
 
-# Core signaling methods
-signaling_manager.offer(room, peer_id, offer)      # Handle WebRTC offer
-signaling_manager.candidate(room, peer_id, candidate) # Handle ICE candidate
-signaling_manager.leave(room, peer_id)              # Handle peer leaving
+# Core signaling methods (positional arguments required)
+signaling_manager.offer(room: str, peer_id: str, offer: dict) -> dict
+signaling_manager.candidate(room: str, peer_id: str, candidate: dict) -> None
+signaling_manager.leave(room: str, peer_id: str) -> None
 
 # Room information
-signaling_manager.rooms_info()                     # Get all rooms info
-signaling_manager.get_room_peers(room_name)        # Get peers in specific room
+signaling_manager.rooms_info() -> dict             # Get all rooms info
+signaling_manager.get_room_peers(room_name: str) -> list # Get peers in specific room
 ```
+
+**Parameters:**
+- `room`: String - Room/channel identifier
+- `peer_id`: String - Unique identifier for the peer
+- `offer`: Dict - WebRTC offer object with SDP
+- `candidate`: Dict - ICE candidate object
 
 #### Event Handlers (Decorators)
 
@@ -301,6 +329,76 @@ All examples available at `http://localhost:5000` after running.
 - ✅ **Event-driven** - Socket.io-like callbacks
 - ✅ **Robust networking** - Built-in error handling
 - ✅ **Framework agnostic** - Works with any backend
+
+## 🔧 Common Issues & Solutions
+
+### Backend 500 Errors
+If you get "unexpected keyword argument" errors:
+
+```python
+# ❌ DON'T use **request.json
+signaling_manager.offer(**request.json)
+
+# ✅ DO use positional arguments
+data = request.json
+signaling_manager.offer(data['room'], data['peer_id'], data['offer'])
+```
+
+### CDN Usage
+```html
+<!-- ✅ Correct CDN usage -->
+<script src="https://unpkg.com/peerpyrtc-client/dist/peerpyrtc.umd.js"></script>
+<script>
+  const { WebRTCConnection } = window.WebRTCConnection;
+  // NOT: window.WebRTCConnection.WebRTCConnection
+</script>
+```
+
+### Production-Ready Backend Example
+
+```python
+from flask import Flask, request, jsonify
+from peerpyrtc import SignalingManager
+
+app = Flask(__name__)
+signaling_manager = SignalingManager(debug=False)  # Set to False in production
+
+@app.route("/offer", methods=["POST"])
+def offer():
+    try:
+        data = request.json
+        if not all(k in data for k in ['room', 'peer_id', 'offer']):
+            return jsonify({"error": "Missing required parameters"}), 400
+            
+        result = signaling_manager.offer(data['room'], data['peer_id'], data['offer'])
+        return jsonify({"answer": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/candidate", methods=["POST"])
+def candidate():
+    try:
+        data = request.json
+        if not all(k in data for k in ['room', 'peer_id', 'candidate']):
+            return jsonify({"error": "Missing required parameters"}), 400
+            
+        signaling_manager.candidate(data['room'], data['peer_id'], data['candidate'])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/leave", methods=["POST"])
+def leave():
+    try:
+        data = request.json
+        if not all(k in data for k in ['room', 'peer_id']):
+            return jsonify({"error": "Missing required parameters"}), 400
+            
+        signaling_manager.leave(data['room'], data['peer_id'])
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
 
 ## 🚀 Get Started
 

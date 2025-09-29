@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Chat Room</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    #chat-container { display: none; margin-top: 20px; }
+    #messages { border: 1px solid #ccc; height: 200px; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
+    #room-id { width: 200px; }
+    #message-input { width: 300px; }
+  </style>
+</head>
+<body>
+  <h2>Join a Chat Room</h2>
+  <input type="text" id="room-id" placeholder="Enter Room ID">
+  <button id="join-btn">Join Room</button>
+
+  <div id="chat-container">
+    <h3>Room: <span id="current-room"></span></h3>
+    <div id="messages"></div>
+    <input type="text" id="message-input" placeholder="Type your message">
+    <button id="send-btn">Send</button>
+  </div>
+
+  <!-- Load the PeerPyRTC client -->
+  <script src="https://unpkg.com/peerpyrtc-client/dist/peerpyrtc.umd.js"></script>
+  <script>
+    console.log("WebRTCConnection global:", window.WebRTCConnection);
+    console.log("All globals:", Object.keys(window));
+
+    const joinBtn = document.getElementById('join-btn');
+    const roomIdInput = document.getElementById('room-id');
+    const chatContainer = document.getElementById('chat-container');
+    const currentRoom = document.getElementById('current-room');
+    const messagesDiv = document.getElementById('messages');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    let rtc = null;
+
+    joinBtn.onclick = async function () {
+      const roomId = roomIdInput.value.trim();
+      if (!roomId) {
+        alert("Please enter a Room ID.");
+        return;
+      }
+
+      currentRoom.textContent = roomId;
+      chatContainer.style.display = 'block';
+      roomIdInput.disabled = true;
+      joinBtn.disabled = true;
+
+      // ✅ Access WebRTCConnection from the global
+      console.log('Available:', window.WebRTCConnection);
+      const { WebRTCConnection } = window.WebRTCConnection || window;
+
+      rtc = new WebRTCConnection(roomId, { debug: true });
+
+      rtc.onMessage = (senderId, message, event) => {
+        const msgElem = document.createElement('div');
+        msgElem.textContent = `${senderId}: ${message}`;
+        messagesDiv.appendChild(msgElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      };
+
+      rtc.onPeerJoined = (peer) => {
+        console.log(`🟢 ${peer.id} joined! Host: ${peer.isHost}`);
+      };
+
+      rtc.onPeerLeft = (peer) => {
+        console.log(`🔴 ${peer.id} left the room`);
+      };
+
+      rtc.onOpen = () => {
+        console.log("Connected! Peers:", rtc.getPeerCount());
+      };
+
+      await rtc.connect();
+
+      sendBtn.onclick = function () {
+        const message = messageInput.value.trim();
+        if (message) {
+          const msgElem = document.createElement('div');
+          msgElem.textContent = `You: ${message}`;
+          messagesDiv.appendChild(msgElem);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          messageInput.value = '';
+          rtc.sendMessage(message);
+        }
+      };
+
+      messageInput.addEventListener('keyup', function (event) {
+        if (event.key === 'Enter') {
+          sendBtn.click();
+        }
+      });
+    };
+  </script>
+</body>
+</html>
