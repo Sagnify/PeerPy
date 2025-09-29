@@ -31,7 +31,27 @@ db = MockDatabase() # In a real app, this would be your actual DB connection
 async def custom_chat_message_handler(room_name: str, sender_id: str, message: str):
     logger.info(f"[CUSTOM_BACKEND_MESSAGE] Room: {room_name}, Sender: {sender_id}, Message: {message}")
     await db.save_chat_message(room_name, sender_id, message)
+
+@signaling_manager.peer_joined_handler
+async def on_peer_joined(room_name: str, peer_id: str, peer_info: dict):
+    logger.info(f"[PEER_JOINED] {peer_id} joined room {room_name}")
+    print(f"🟢 Peer {peer_id} joined {room_name} at {peer_info.get('joinTime')}")
+
+@signaling_manager.peer_left_handler
+async def on_peer_left(room_name: str, peer_id: str, peer_info: dict):
+    logger.info(f"[PEER_LEFT] {peer_id} left room {room_name}")
+    print(f"🔴 Peer {peer_id} left {room_name}")
 # -------------------------------------------------
+
+@app.route("/room-status/<room>")
+def get_room_status(room):
+    """Get the list of peers in a room with metadata"""
+    peers = signaling_manager.get_room_peers(room)
+    return jsonify({
+        "peers": peers,
+        "count": len(peers),
+        "host_id": signaling_manager.rooms[room].get_host_id() if room in signaling_manager.rooms else None
+    })
 
 @app.route("/offer", methods=["POST"])
 def handle_offer():

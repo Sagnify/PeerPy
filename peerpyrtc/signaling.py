@@ -51,6 +51,8 @@ class SignalingManager:
             }
         ]
         self._message_handler = self._default_message_logger # Set default handler
+        self._peer_joined_handler = None
+        self._peer_left_handler = None
 
     def _start_event_loop(self):
         def run_loop():
@@ -86,6 +88,24 @@ class SignalingManager:
         """
         self.set_message_handler(func)
         return func # Return the original function so it can still be called if needed
+    
+    def peer_joined_handler(self, func):
+        """
+        Decorator to register a function as the peer joined handler.
+        The decorated function must be an async function and accept
+        (room_name: str, peer_id: str, peer_info: dict) as arguments.
+        """
+        self._peer_joined_handler = func
+        return func
+    
+    def peer_left_handler(self, func):
+        """
+        Decorator to register a function as the peer left handler.
+        The decorated function must be an async function and accept
+        (room_name: str, peer_id: str, peer_info: dict) as arguments.
+        """
+        self._peer_left_handler = func
+        return func
 
     async def _handle_room_message(self, room_name: str, sender_id: str, message: str):
         """Internal handler for messages received by a room's peer."""
@@ -97,16 +117,35 @@ class SignalingManager:
                 signaling_logger.error(f"Error in user-defined message handler: {e}")
         else:
             signaling_logger.debug(f"No message handler set in SignalingManager for room {room_name}, peer {sender_id}: {message}")
+    
+    async def _handle_peer_joined(self, room_name: str, peer_id: str, peer_info: dict):
+        """Internal handler for peer joined events."""
+        if self._peer_joined_handler:
+            try:
+                await self._peer_joined_handler(room_name, peer_id, peer_info)
+            except Exception as e:
+                signaling_logger.error(f"Error in peer joined handler: {e}")
+    
+    async def _handle_peer_left(self, room_name: str, peer_id: str, peer_info: dict):
+        """Internal handler for peer left events."""
+        if self._peer_left_handler:
+            try:
+                await self._peer_left_handler(room_name, peer_id, peer_info)
+            except Exception as e:
+                signaling_logger.error(f"Error in peer left handler: {e}")
 
     def get_room(self, room_name: str) -> Room:
         """Get or create a room"""
         if room_name not in self.rooms:
             # Pass TURN servers to the Room constructor
-            self.rooms[room_name] = Room(
+            room = Room(
                 room_name,
                 turn_servers=self.default_turn_servers,
                 on_message_callback=self._handle_room_message
             )
+            room.on_peer_joined = self._handle_peer_joined
+            room.on_peer_left = self._handle_peer_left
+            self.rooms[room_name] = room
             signaling_logger.info(f"Created new room: {room_name}")
         return self.rooms[room_name]
 
@@ -143,9 +182,16 @@ class SignalingManager:
         for name, room in self.rooms.items():
             room_info[name] = {
                 "peer_count": room.get_peer_count(),
-                "peers": list(room.peers.keys())
+                "peers": room.get_peer_list(),
+                "host_id": room.get_host_id()
             }
         return room_info
+    
+    def get_room_peers(self, room_name: str) -> list:
+        """Get list of peers in a specific room"""
+        if room_name in self.rooms:
+            return self.rooms[room_name].get_peer_list()
+        return []
 def rooms_info(self) -> dict:
         room_info = {}
         for name, room in self.rooms.items():

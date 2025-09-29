@@ -5,29 +5,53 @@
   <title>WebRTC DataChannel Chat</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { display: flex; gap: 20px; }
+    .chat-section { flex: 1; }
     #chat { border: 1px solid #ccc; padding: 10px; width: 400px; height: 300px; overflow-y: auto; background: #f9f9f9; }
     #message { width: 300px; padding: 5px; }
     button { padding: 5px 10px; margin: 5px; }
     .status { color: #666; font-style: italic; }
     .error { color: red; }
     .success { color: green; }
+    .join { color: #28a745; }
+    .leave { color: #dc3545; }
     input { padding: 5px; margin: 5px; }
+    #peers { 
+      width: 200px; 
+      padding: 10px; 
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+    }
+    .peer {
+      padding: 5px;
+      margin: 5px 0;
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 3px;
+    }
   </style>
 </head>
 <body>
   <h2>WebRTC DataChannel Chat</h2>
 
-  <label>Room: <input type="text" id="room" value="myroom"></label><br>
-  <label><input type="checkbox" id="debugMode"> Enable Debug Logging</label><br><br>
-  <button id="joinButton">Join Room</button>
-  <button id="leaveButton">Leave Room</button>
+  <div class="container">
+    <div class="chat-section">
+      <label>Room: <input type="text" id="room" value="myroom"></label><br>
+      <label><input type="checkbox" id="debugMode"> Enable Debug Logging</label><br><br>
+      <button id="joinButton">Join Room</button>
+      <button id="leaveButton">Leave Room</button>
 
-  <div id="status" class="status">Not connected</div>
+      <div id="status" class="status">Not connected</div>
 
-  <h3>Chat</h3>
-  <div id="chat"></div>
-  <input type="text" id="message" placeholder="Type a message...">
-  <button id="sendButton">Send</button>
+      <h3>Chat</h3>
+      <div id="chat"></div>
+      <input type="text" id="message" placeholder="Type a message...">
+      <button id="sendButton">Send</button>
+    </div>
+    <div id="peers">
+      <h3>Active Peers</h3>
+    </div>
+  </div>
 
   <script type="module">
     import { WebRTCConnection } from '../../peerpyrtc_client/myrtclib.js';
@@ -59,33 +83,120 @@
       log("Joining room...", "status");
       updateStatus("Connecting...");
 
-      rtcConnection = new WebRTCConnection(roomName, { debug: debugMode });
+      let isConnecting = false;
+
+      rtcConnection = new WebRTCConnection(roomName, { 
+        debug: debugMode,
+        maxReconnectAttempts: 3,
+        reconnectDelay: 2000
+      });
 
       log(`Your Peer ID is: ${rtcConnection.peerId}`, "status");
 
-      rtcConnection.onMessage = (sender_id, message) => {
-        log(`Remote (${sender_id}): ${message}`);
+      // Track peer in the UI
+      const updatePeersList = () => {
+        const peersDiv = document.getElementById("peers");
+        const peerCount = rtcConnection.getPeerCount() + 1; // +1 for self
+        peersDiv.innerHTML = `<h3>Active Peers (${peerCount})</h3>`;
+        
+        // Show current user
+        const selfPeerEl = document.createElement("div");
+        selfPeerEl.className = "peer";
+        const hostBadge = rtcConnection.isRoomHost() ? ' 👑' : '';
+        selfPeerEl.innerHTML = `<strong>${rtcConnection.peerId} (You)${hostBadge}</strong>`;
+        peersDiv.appendChild(selfPeerEl);
+        
+        // Show all room peers
+        const roomPeers = rtcConnection.getRoomPeers();
+        roomPeers.forEach(peer => {
+          if (peer.id !== rtcConnection.peerId) {
+            const peerEl = document.createElement("div");
+            peerEl.className = "peer";
+            
+            const hostBadge = peer.isHost ? ' 👑' : '';
+            const joinTime = new Date(peer.joinTime).toLocaleTimeString();
+            
+            peerEl.innerHTML = `
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #28a745; margin-right: 5px;"></span>
+              ${peer.id}${hostBadge}
+              <small style="color: #666; display: block;">Joined: ${joinTime}</small>
+            `;
+            
+            peersDiv.appendChild(peerEl);
+          }
+        });
       };
 
+      rtcConnection.onMessage = (sender_id, message, event) => {
+        if (event) {
+          log(`📡 Event [${event}] from ${sender_id}: ${JSON.stringify(message)}`, "status");
+        } else {
+          log(`Remote (${sender_id}): ${message}`);
+        }
+        updatePeersList();
+      };
+      
+      rtcConnection.onPeerJoined = (peer) => {
+        log(`🟢 ${peer.id} joined the room`, "join");
+        updatePeersList();
+      };
+      
+      rtcConnection.onPeerLeft = (peer) => {
+        log(`🔴 ${peer.id} left the room`, "leave");
+        updatePeersList();
+      };
+      
+      rtcConnection.onRoomUpdate = (peers) => {
+        updatePeersList();
+      };
+
+      let hasConnected = false;
+
       rtcConnection.onOpen = () => {
-        log("Chat ready! You can now send messages.", "success");
+        if (!hasConnected) {
+          log("Chat ready! You can now send messages.", "success");
+          hasConnected = true;
+        }
+        isConnecting = false;
+        
         updateStatus("Connected - Ready to chat");
+        updatePeersList();
       };
 
       rtcConnection.onClose = () => {
         log("Chat disconnected", "error");
         updateStatus("Disconnected");
+        document.getElementById("peers").innerHTML = '<h3>Active Peers</h3>';
+        hasConnected = false;
+        
+        // Attempt to reconnect if not intentionally closed
+        if (!isConnecting && rtcConnection) {
+          isConnecting = true;
+          setTimeout(async () => {
+            try {
+              await rtcConnection.connect();
+            } catch (error) {
+              isConnecting = false;
+              log(`Reconnection failed: ${error.message}`, "error");
+            }
+          }, 2000);
+        }
       };
 
       rtcConnection.onError = (error) => {
         log(`WebRTC Error: ${error.message}`, "error");
         updateStatus("Connection failed");
+        // Don't try to reconnect immediately on error
+        // The onClose handler will handle reconnection if needed
       };
 
       rtcConnection.onStatusChange = (status) => {
         updateStatus(status);
       };
 
+
+
+      isConnecting = true;
       try {
         await rtcConnection.connect();
         log(`Joined room: ${roomName} as ${rtcConnection.peerId}`, "success");
@@ -93,6 +204,7 @@
         console.error("[ERROR] Failed to join room:", error);
         log(`Failed to join room: ${error.message}`, "error");
         updateStatus("Connection failed");
+        isConnecting = false;
       }
     }
 

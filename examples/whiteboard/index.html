@@ -75,6 +75,34 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
+    function showCursor(peerId, x, y, color) {
+      // Remove existing cursor for this peer
+      const existingCursor = document.getElementById(`cursor-${peerId}`);
+      if (existingCursor) {
+        existingCursor.remove();
+      }
+
+      // Create new cursor
+      const cursor = document.createElement('div');
+      cursor.id = `cursor-${peerId}`;
+      cursor.style.cssText = `
+        position: absolute;
+        left: ${canvas.offsetLeft + x - 5}px;
+        top: ${canvas.offsetTop + y - 5}px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: ${color};
+        border: 2px solid white;
+        pointer-events: none;
+        z-index: 1000;
+      `;
+      document.body.appendChild(cursor);
+
+      // Remove cursor after 2 seconds
+      setTimeout(() => cursor.remove(), 2000);
+    }
+
     // Canvas drawing event handlers
     canvas.addEventListener('mousedown', (e) => {
       isDrawing = true;
@@ -82,28 +110,36 @@
     });
 
     canvas.addEventListener('mousemove', (e) => {
-      if (!isDrawing) return;
       const color = document.getElementById('colorPicker').value;
       const size = document.getElementById('brushSize').value;
 
-      // Draw locally
-      drawLine(lastX, lastY, e.offsetX, e.offsetY, color, size);
+      if (isDrawing) {
+        // Draw locally
+        drawLine(lastX, lastY, e.offsetX, e.offsetY, color, size);
 
-      // Send drawing data over WebRTC
-      if (rtcConnection && rtcConnection.isConnected()) {
-        const drawData = {
-          type: 'draw',
-          x1: lastX,
-          y1: lastY,
-          x2: e.offsetX,
-          y2: e.offsetY,
-          color: color,
-          size: size
-        };
-        rtcConnection.sendMessage(JSON.stringify(drawData));
+        // Send drawing data over WebRTC using emit
+        if (rtcConnection && rtcConnection.isConnected()) {
+          rtcConnection.emit('draw', {
+            x1: lastX,
+            y1: lastY,
+            x2: e.offsetX,
+            y2: e.offsetY,
+            color: color,
+            size: size
+          });
+        }
+
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+      } else {
+        // Show cursor position to other users
+        if (rtcConnection && rtcConnection.isConnected()) {
+          rtcConnection.emit('cursor', {
+            x: e.offsetX,
+            y: e.offsetY,
+            color: color
+          });
+        }
       }
-
-      [lastX, lastY] = [e.offsetX, e.offsetY];
     });
 
     canvas.addEventListener('mouseup', () => isDrawing = false);
@@ -112,7 +148,7 @@
     document.getElementById('clearButton').addEventListener('click', () => {
       clearCanvas();
       if (rtcConnection && rtcConnection.isConnected()) {
-        rtcConnection.sendMessage(JSON.stringify({ type: 'clear' }));
+        rtcConnection.emit('clear', {});
       }
     });
 
@@ -131,16 +167,19 @@
 
       rtcConnection = new WebRTCConnection(roomName, { peerId: peerId, debug: debugMode });
 
-      rtcConnection.onMessage = (message) => {
-        try {
-          const data = JSON.parse(message);
-          if (data.type === 'draw') {
-            drawLine(data.x1, data.y1, data.x2, data.y2, data.color, data.size);
-          } else if (data.type === 'clear') {
+      rtcConnection.onMessage = (sender_id, message, event) => {
+        if (event) {
+          // Handle emit() events
+          if (event === 'draw') {
+            drawLine(message.x1, message.y1, message.x2, message.y2, message.color, message.size);
+          } else if (event === 'clear') {
             clearCanvas();
+          } else if (event === 'cursor') {
+            showCursor(sender_id, message.x, message.y, message.color);
           }
-        } catch (e) {
-          console.error("Failed to parse message:", e);
+        } else {
+          // Handle regular messages (if any)
+          console.log(`Message from ${sender_id}:`, message);
         }
       };
 

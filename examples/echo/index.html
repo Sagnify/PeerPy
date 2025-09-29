@@ -67,10 +67,10 @@
       log("Connecting...", "status");
       updateStatus("Connecting...");
 
-      rtcConnection = new WebRTCConnection(roomName, peerId);
+      rtcConnection = new WebRTCConnection(roomName, { peerId: peerId, debug: true });
 
-      rtcConnection.onMessage = (message) => {
-        log(`Received: ${message}`);
+      rtcConnection.onMessage = (sender_id, message) => {
+        log(`Received from ${sender_id}: ${message}`);
       };
 
       rtcConnection.onOpen = () => {
