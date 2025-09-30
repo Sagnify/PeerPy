@@ -152,11 +152,14 @@ manager.onRoom('lobby', 'player-joined', (roomId, senderId, data) => {
 // Join multiple rooms
 await manager.joinRooms(['lobby', 'game-1', 'chat-general']);
 
-// Auto-join and emit (creates connection if needed)
-await manager.autoEmit('new-room', 'welcome', { user: 'Alice' });
+// Join multiple rooms
+await manager.joinRooms(['lobby', 'game-1', 'chat-general']);
 
-// Broadcast to all rooms
-manager.broadcastToAll('announcement', { text: 'Server maintenance in 5 min' });
+// Emit to specific room
+manager.emit('lobby', 'player-joined', { playerId: 'user123' });
+
+// Send message to specific room
+manager.sendMessage('game-1', 'Hello game room!');
 ```
 
 ## 📚 API Reference

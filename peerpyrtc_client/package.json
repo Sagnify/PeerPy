@@ -1,6 +1,6 @@
 {
   "name": "peerpyrtc-client",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Python-backed WebRTC helper library for JS clients",
   "main": "dist/peerpyrtc.umd.js",
   "module": "dist/peerpyrtc.esm.js",

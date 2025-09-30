@@ -96,11 +96,14 @@ manager.onRoom('lobby', 'player-joined', (roomId, senderId, data) => {
 // Join multiple rooms
 await manager.joinRooms(['lobby', 'game-1', 'chat-general']);
 
-// Auto-join and emit (creates connection if needed)
-await manager.autoEmit('new-room', 'welcome', { user: 'Alice' });
+// Join multiple rooms
+await manager.joinRooms(['lobby', 'game-1', 'chat-general']);
 
-// Broadcast to all rooms
-manager.broadcastToAll('announcement', { text: 'Server maintenance in 5 min' });
+// Emit to specific room
+manager.emit('lobby', 'player-joined', { playerId: 'user123' });
+
+// Send message to specific room
+manager.sendMessage('game-1', 'Hello game room!');
 ```
 
 ## 📚 API Reference
@@ -171,8 +174,8 @@ await manager.leaveAllRooms()                  // Leave all rooms
 
 // Smart Messaging
 manager.emit(roomId, event, data)              // Emit to specific room
-await manager.autoEmit(roomId, event, data)    // Auto-join and emit
-manager.broadcastToAll(event, data)            // Broadcast to all rooms
+manager.emit(roomId, event, data)              // Emit to specific room
+manager.sendMessage(roomId, message)           // Send message to room
 manager.sendMessage(roomId, message)           // Send message to room
 
 // Event Handling
