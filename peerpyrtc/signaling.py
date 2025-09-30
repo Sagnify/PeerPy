@@ -192,11 +192,3 @@ class SignalingManager:
         if room_name in self.rooms:
             return self.rooms[room_name].get_peer_list()
         return []
-def rooms_info(self) -> dict:
-        room_info = {}
-        for name, room in self.rooms.items():
-            room_info[name] = {
-                "peer_count": room.get_peer_count(),
-                "peers": list(room.peers.keys())
-            }
-        return room_info

@@ -7,7 +7,7 @@ PeerPyRTC is a revolutionary WebRTC DataChannel library that **replaces WebSocke
 ## 🚀 Key Features
 
 -   **🔄 Socket.io Replacement**: Drop-in replacement with `emit()`, `broadcast()`, and event-driven architecture
--   **⚡ Serverless Architecture**: True P2P after initial signaling - no persistent server needed
+-   **⚡ Multi-Room Support**: WebRTCRoomManager for handling multiple rooms simultaneously
 -   **🎯 Real-time Peer Management**: Automatic join/leave detection, host election, room state sync
 -   **🛡️ Production Ready**: Built-in TURN servers, reconnection, error handling, and failover
 -   **🔧 Framework Agnostic**: Works with Flask, FastAPI, Django, Express.js, or any web framework
@@ -88,6 +88,7 @@ if __name__ == "__main__":
 
 ### Frontend (JavaScript)
 
+#### Single Room Usage
 ```javascript
 import { WebRTCConnection } from 'peerpyrtc-client';
 
@@ -126,6 +127,36 @@ rtc.onOpen = () => {
 
 // Connect to room
 await rtc.connect();
+```
+
+#### Multi-Room Management
+```javascript
+import { WebRTCRoomManager } from 'peerpyrtc-client';
+
+const manager = new WebRTCRoomManager("user123", { debug: true });
+
+// Global event handlers (apply to all rooms)
+manager.on('chat-message', (roomId, senderId, message) => {
+  console.log(`Message in ${roomId} from ${senderId}:`, message);
+});
+
+manager.on('user-active', (roomId, senderId, message) => {
+  console.log(`User ${senderId} active in ${roomId}`);
+});
+
+// Room-specific handlers
+manager.onRoom('lobby', 'player-joined', (roomId, senderId, data) => {
+  console.log(`Player joined lobby:`, data);
+});
+
+// Join multiple rooms
+await manager.joinRooms(['lobby', 'game-1', 'chat-general']);
+
+// Auto-join and emit (creates connection if needed)
+await manager.autoEmit('new-room', 'welcome', { user: 'Alice' });
+
+// Broadcast to all rooms
+manager.broadcastToAll('announcement', { text: 'Server maintenance in 5 min' });
 ```
 
 ## 📚 API Reference
@@ -332,6 +363,25 @@ All examples available at `http://localhost:5000` after running.
 
 ## 🔧 Common Issues & Solutions
 
+### "Cannot send EVENT - data channel not ready"
+**Problem**: Trying to emit events immediately after connection.
+
+**Solution**: Wait for connection to be fully established:
+```javascript
+rtc.onOpen = () => {
+  // Connection is ready, safe to emit
+  rtc.emit('user-joined', { userId: 'user123' });
+};
+
+// Or use setTimeout for delayed emit
+const connection = await rtc.connect();
+setTimeout(() => {
+  if (rtc.isConnected()) {
+    rtc.emit('welcome', { message: 'Hello!' });
+  }
+}, 1000);
+```
+
 ### Backend 500 Errors
 If you get "unexpected keyword argument" errors:
 
@@ -342,6 +392,23 @@ signaling_manager.offer(**request.json)
 # ✅ DO use positional arguments
 data = request.json
 signaling_manager.offer(data['room'], data['peer_id'], data['offer'])
+```
+
+### Multi-Room Management
+**Problem**: Managing connections to multiple rooms manually.
+
+**Solution**: Use WebRTCRoomManager:
+```javascript
+// Instead of managing multiple WebRTCConnection instances
+const manager = new WebRTCRoomManager('user123');
+
+// Simple room switching
+await manager.joinRoom('room1');
+await manager.joinRoom('room2');
+
+// Automatic connection management
+manager.emit('room1', 'message', { text: 'Hello room 1' });
+manager.emit('room2', 'message', { text: 'Hello room 2' });
 ```
 
 ### CDN Usage
